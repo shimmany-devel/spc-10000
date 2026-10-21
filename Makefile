@@ -16,5 +16,8 @@ run: build
 test-headless: build
 	./$(BUILD_DIR)/spc_launcher --headless 120
 
+test-z8000: build
+	./$(BUILD_DIR)/spc_launcher --test-z8000
+
 clean:
 	rm -rf $(BUILD_DIR)

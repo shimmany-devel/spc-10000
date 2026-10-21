@@ -1,31 +1,120 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <cassert>
 #include "sys_spc1000/spc1000_machine.hpp"
+#include "sys_spc10000/spc10000_machine.hpp"
 #include "ui/emulator_window.hpp"
+
+// Z8000 코어 명령어 및 버스 검증 테스트
+bool run_z8000_unit_tests() {
+    std::cout << "[Test] Running Z8000 CPU Core Self-Tests...\n";
+    spc::Spc10000Board board;
+    spc::Z8000Cpu cpu(board, spc::Z8000Cpu::Model::Z8001_Segmented);
+
+    // 1. Z8000 리셋 및 세그먼트 모드 확인
+    cpu.reset();
+    assert(cpu.is_segmented());
+    assert(cpu.regs().fcw & spc::FCW_S_N); // System Mode
+    std::cout << "  - Reset & Segmented Mode: PASS\n";
+
+    // 2. 명령어 쓰기 및 실행 테스트:
+    //    LD R1, 0x1234   (0x2110 0x1234)
+    //    ADD R1, 0x0002  (0x0110 0x0002) -> R1 should be 0x1236
+    //    OUTB @0x2000, RH1 (0x3B20 0x2000) -> Out VDG GMODE with 0x12
+    uint32_t pc = 0x001000;
+    cpu.set_pc_linear(pc);
+
+    board.mem_write_word(pc + 0, 0x2110);
+    board.mem_write_word(pc + 2, 0x1234);
+    board.mem_write_word(pc + 4, 0x0110);
+    board.mem_write_word(pc + 6, 0x0002);
+    board.mem_write_word(pc + 8, 0x3B20); // RH1 is reg_idx 2
+    board.mem_write_word(pc + 10, 0x2000);
+
+    cpu.step_instruction(); // LD R1, 0x1234
+    assert(cpu.regs().r[1] == 0x1234);
+
+    cpu.step_instruction(); // ADD R1, 0x0002
+    assert(cpu.regs().r[1] == 0x1236);
+
+    cpu.step_instruction(); // OUTB @0x2000, RH1
+    assert(board.vdg().read_gmode() == 0x12);
+    std::cout << "  - Basic 16-bit ALU & I/O Bus Bridge: PASS\n";
+
+    // 3. Special I/O (슈퍼 그래픽 모드 토글 테스트)
+    //    LDB RL1, 0x01 (0x0C21) -> RL1 is reg_idx 3
+    //    SOUTB @0x00, RL1 (0x3930 0x0000) -> Super Graphic ON
+    uint32_t pc2 = 0x001020;
+    cpu.set_pc_linear(pc2);
+    board.mem_write_word(pc2 + 0, 0x0C31); // LDB RL1, 0x01
+    board.mem_write_word(pc2 + 2, 0x3930); // SOUTB @0x0000, RL1
+    board.mem_write_word(pc2 + 4, 0x0000);
+
+    cpu.step_instruction();
+    assert(cpu.regs().get_rb(3) == 0x01);
+    cpu.step_instruction();
+    assert(board.is_super_graphic_mode() == true);
+    std::cout << "  - Special I/O & Super Graphic Mode Toggle: PASS\n";
+
+    std::cout << "[Test] All Z8000 CPU unit tests passed successfully!\n";
+    return true;
+}
 
 int main(int argc, char* argv[]) {
     std::cout << "========================================================\n";
     std::cout << " SPC-1000 Modernization & SPC-10000 Evolution           \n";
-    std::cout << " Phase 2: Modular C++20 SPC-1000 Base Emulator          \n";
+    std::cout << " Version: 0.3.0-dev (Dual Z80 & Z8000 Architecture)     \n";
     std::cout << "========================================================\n";
 
     std::string rom_path = "reference/roms/spc1000.rom";
     bool headless = false;
+    bool run_spc10000 = false;
     int test_frames = 60;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--headless") {
             headless = true;
-            if (i + 1 < argc) {
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
                 test_frames = std::stoi(argv[++i]);
             }
+        } else if (arg == "--spc10000") {
+            run_spc10000 = true;
+        } else if (arg == "--test-z8000") {
+            return run_z8000_unit_tests() ? 0 : 1;
         } else if (arg == "--rom" && i + 1 < argc) {
             rom_path = argv[++i];
         }
     }
 
+    if (run_spc10000) {
+        std::cout << "[Mode] Launching SPC-10000 (16-bit Z8000 Evolution)...\n";
+        spc::Spc10000Machine machine;
+        machine.init("firmware-spc10000/spc10000.rom");
+        std::cout << "[System] Z8000 CPU initialized at PC: 0x" 
+                  << std::hex << machine.pc() << std::dec << "\n";
+
+        if (headless) {
+            std::cout << "[System] Running SPC-10000 in headless mode for " << test_frames << " frames...\n";
+            for (int f = 0; f < test_frames; ++f) {
+                machine.run_frame();
+            }
+            std::cout << "[System] Headless execution completed. Final PC: 0x" 
+                      << std::hex << machine.pc() << std::dec << "\n";
+            return 0;
+        }
+
+        spc::EmulatorWindow window;
+        if (window.init("SPC-10000 16-bit Computer (Z8001 @ 10MHz)")) {
+            // SPC-10000 프레임 루프는 window.run에 전달하거나 루프로 구동
+            std::cout << "[System] Running SPC-10000 GUI display.\n";
+        }
+        return 0;
+    }
+
+    // 기본 SPC-1000 모드
+    std::cout << "[Mode] Launching Base SPC-1000 (8-bit Z80A)...\n";
     spc::Spc1000Machine machine;
     if (!machine.init(rom_path)) {
         std::cerr << "[Error] Failed to initialize machine with ROM: " << rom_path << "\n";
@@ -38,71 +127,24 @@ int main(int argc, char* argv[]) {
     if (headless) {
         std::cout << "[System] Running in headless test mode for " << test_frames << " frames...\n";
         for (int f = 0; f < test_frames; ++f) {
-            if (f == 40) {
-                std::cout << "  [Input Simulation] Sending ENTER (SDLK_RETURN) key press...\n";
-                machine.handle_key_down(SDLK_RETURN);
-            }
-            if (f == 50) {
-                machine.handle_key_up(SDLK_RETURN);
-            }
             machine.run_frame();
-            if ((f + 1) % 20 == 0) {
+            if ((f + 1) % 40 == 0) {
                 std::cout << "  Frame " << (f + 1) << "/" << test_frames 
                           << " executed. Current PC: 0x" << std::hex << machine.pc() << std::dec << "\n";
             }
         }
         std::cout << "[System] Headless execution completed successfully.\n";
 
-        // VRAM 텍스트 화면 상태 출력 검증 (16줄 전체)
         const uint8_t gmode = machine.board().vdg().read_gmode();
         const int page = (gmode & 0x30) >> 4;
         std::cout << "[VDG State] GMODE: 0x" << std::hex << (int)gmode << ", Active Text Page: " << page << std::dec << "\n";
-
-        int non_zero_count = 0;
-        for (size_t i = 0; i < spc::VdgMc6847::VRAM_SIZE; ++i) {
-            if (machine.board().vdg().read_vram(i) != 0) {
-                non_zero_count++;
-            }
-        }
-        std::cout << "[VRAM Status] Total non-zero bytes across 8KB VRAM: " << non_zero_count << "\n";
-        std::cout << "[VRAM Non-Zero Regions]:\n";
-        for (size_t block = 0; block < spc::VdgMc6847::VRAM_SIZE; block += 512) {
-            int cnt = 0;
-            for (size_t i = 0; i < 512; ++i) {
-                if (machine.board().vdg().read_vram(block + i) != 0) cnt++;
-            }
-            if (cnt > 0) {
-                std::cout << "  Block 0x" << std::hex << block << " - 0x" << (block + 511)
-                          << ": " << std::dec << cnt << " bytes\n";
-            }
-        }
-        std::cout << "[VRAM Text Screen (16 lines)]:\n";
-        for (int r = 0; r < 16; ++r) {
-            std::cout << (r < 10 ? " " : "") << r << ": [";
-            for (int c = 0; c < 32; ++c) {
-                uint8_t ch = machine.board().vdg().read_vram(r * 32 + c);
-                if (ch >= 32 && ch < 127) {
-                    std::cout << (char)ch;
-                } else if (ch == 0) {
-                    std::cout << " ";
-                } else {
-                    std::cout << "~";
-                }
-            }
-            std::cout << "]\n";
-        }
         return 0;
     }
 
-    // GUI 윈도우 실행 모드
     spc::EmulatorWindow window;
     if (!window.init("SPC-1000 Modern Emulator (C++20)")) {
-        std::cerr << "[Warning] Display not available or SDL init failed. Falling back to headless test...\n";
-        for (int f = 0; f < 60; ++f) {
-            machine.run_frame();
-        }
-        std::cout << "[System] Headless fallback frame execution finished. Final PC: 0x" 
-                  << std::hex << machine.pc() << std::dec << "\n";
+        std::cerr << "[Warning] Display not available. Falling back to headless execution.\n";
+        for (int f = 0; f < 60; ++f) machine.run_frame();
         return 0;
     }
 
