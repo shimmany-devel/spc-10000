@@ -25,11 +25,11 @@ bool run_z8000_unit_tests() {
     uint32_t pc = 0x001000;
     cpu.set_pc_linear(pc);
 
-    board.mem_write_word(pc + 0, 0x2110);
+    board.mem_write_word(pc + 0, 0x2101); // LD R1, 0x1234
     board.mem_write_word(pc + 2, 0x1234);
-    board.mem_write_word(pc + 4, 0x0110);
+    board.mem_write_word(pc + 4, 0x0101); // ADD R1, 0x0002
     board.mem_write_word(pc + 6, 0x0002);
-    board.mem_write_word(pc + 8, 0x3B20); // RH1 is reg_idx 2
+    board.mem_write_word(pc + 8, 0x3B02); // OUTB @0x2000, RH1 (RH1 is reg_idx 2)
     board.mem_write_word(pc + 10, 0x2000);
 
     cpu.step_instruction(); // LD R1, 0x1234
@@ -43,13 +43,14 @@ bool run_z8000_unit_tests() {
     std::cout << "  - Basic 16-bit ALU & I/O Bus Bridge: PASS\n";
 
     // 3. Special I/O (슈퍼 그래픽 모드 토글 테스트)
-    //    LDB RL1, 0x01 (0x0C21) -> RL1 is reg_idx 3
-    //    SOUTB @0x00, RL1 (0x3930 0x0000) -> Super Graphic ON
+    //    LDB RL1, 0x01 (Word 1: 0x0C03, Word 2: 0x0001)
+    //    SOUTB @0x00, RL1 (Word 1: 0x3903, Word 2: 0x0000) -> Super Graphic ON
     uint32_t pc2 = 0x001020;
     cpu.set_pc_linear(pc2);
-    board.mem_write_word(pc2 + 0, 0x0C31); // LDB RL1, 0x01
-    board.mem_write_word(pc2 + 2, 0x3930); // SOUTB @0x0000, RL1
-    board.mem_write_word(pc2 + 4, 0x0000);
+    board.mem_write_word(pc2 + 0, 0x0C03); // LDB RL1, imm
+    board.mem_write_word(pc2 + 2, 0x0001); // imm = 1
+    board.mem_write_word(pc2 + 4, 0x3903); // SOUTB @0x0000, RL1
+    board.mem_write_word(pc2 + 6, 0x0000);
 
     cpu.step_instruction();
     assert(cpu.regs().get_rb(3) == 0x01);
@@ -102,6 +103,22 @@ int main(int argc, char* argv[]) {
             }
             std::cout << "[System] Headless execution completed. Final PC: 0x" 
                       << std::hex << machine.pc() << std::dec << "\n";
+
+            std::cout << "\n[SPC-10000 Native Screen Output]:\n";
+            for (int r = 0; r < 12; ++r) {
+                std::cout << (r < 10 ? " " : "") << r << ": [";
+                for (int c = 0; c < 32; ++c) {
+                    uint8_t ch = machine.board().vdg().read_vram(r * 32 + c);
+                    if (ch >= 32 && ch < 127) {
+                        std::cout << (char)ch;
+                    } else if (ch == 0) {
+                        std::cout << " ";
+                    } else {
+                        std::cout << ".";
+                    }
+                }
+                std::cout << "]\n";
+            }
             return 0;
         }
 

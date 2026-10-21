@@ -157,50 +157,50 @@ struct Z8000Cpu::Impl {
             return 8;
         }
 
-        // 3. LD r, imm16 (0x2100 | (r << 8)) -> 0x21r0
-        if ((op & 0xF00F) == 0x2100) {
-            uint8_t r = (op >> 8) & 0x0F;
+        // 3. LD r, imm16 (Word 1: 0x2100 | r, Word 2: imm16)
+        if ((op & 0xFFF0) == 0x2100) {
+            uint8_t r = static_cast<uint8_t>(op & 0x0F);
             uint16_t imm = fetch_word();
             regs.r[r] = imm;
             return 7;
         }
 
-        // 4. LDB rb, imm8 (0x0C00 | (rb << 8) | imm8)
-        if ((op & 0xF000) == 0x0000 && ((op >> 8) & 0x0F) == 0x0C) {
-            uint8_t rb = (op >> 4) & 0x0F;
-            uint8_t imm = static_cast<uint8_t>(op & 0xFF);
-            regs.set_rb(rb, imm);
+        // 4. LDB rb, imm8 (Word 1: 0x0C00 | rb, Word 2: imm8)
+        if ((op & 0xFF00) == 0x0C00) {
+            uint8_t rb = static_cast<uint8_t>(op & 0xFF);
+            uint16_t imm = fetch_word();
+            regs.set_rb(rb, static_cast<uint8_t>(imm & 0xFF));
             return 7;
         }
 
-        // 5. LDL rr, imm32 (0x1400 | (rr << 8))
-        if ((op & 0xF00F) == 0x1400) {
-            uint8_t rr = (op >> 8) & 0x0E;
+        // 5. LDL rr, imm32 (Word 1: 0x1400 | rr, Word 2: high, Word 3: low)
+        if ((op & 0xFFF0) == 0x1400) {
+            uint8_t rr = static_cast<uint8_t>(op & 0x0E);
             uint16_t high = fetch_word();
             uint16_t low = fetch_word();
             regs.set_rr(rr, (static_cast<uint32_t>(high) << 16) | low);
             return 11;
         }
 
-        // 6. LD r, r' (0x1000 | (r << 8) | (r' << 4))
-        if ((op & 0xF00F) == 0x1000) {
-            uint8_t dst = (op >> 8) & 0x0F;
-            uint8_t src = (op >> 4) & 0x0F;
+        // 6. LD r, r' (Word 1: 0x1000 | (r << 4) | r')
+        if ((op & 0xFF00) == 0x1000) {
+            uint8_t dst = (op >> 4) & 0x0F;
+            uint8_t src = op & 0x0F;
             regs.r[dst] = regs.r[src];
             return 3;
         }
 
-        // 7. LDB rb, rb' (0x0000 | (rb << 8) | (rb' << 4))
-        if ((op & 0xF00F) == 0x0000) {
-            uint8_t dst = (op >> 8) & 0x0F;
-            uint8_t src = (op >> 4) & 0x0F;
+        // 7. LDB rb, rb' (Word 1: 0x0000 | (rb << 4) | rb')
+        if ((op & 0xFF00) == 0x0000) {
+            uint8_t dst = (op >> 4) & 0x0F;
+            uint8_t src = op & 0x0F;
             regs.set_rb(dst, regs.get_rb(src));
             return 3;
         }
 
-        // 8. ADD r, imm16 (0x0100 | (r << 8))
-        if ((op & 0xF00F) == 0x0100) {
-            uint8_t r = (op >> 8) & 0x0F;
+        // 8. ADD r, imm16 (Word 1: 0x0100 | r, Word 2: imm16)
+        if ((op & 0xFFF0) == 0x0100) {
+            uint8_t r = static_cast<uint8_t>(op & 0x0F);
             uint16_t imm = fetch_word();
             uint32_t sum = static_cast<uint32_t>(regs.r[r]) + imm;
             update_flags_add16(regs.r[r], imm, sum);
@@ -208,9 +208,9 @@ struct Z8000Cpu::Impl {
             return 7;
         }
 
-        // 9. SUB r, imm16 (0x0200 | (r << 8))
-        if ((op & 0xF00F) == 0x0200) {
-            uint8_t r = (op >> 8) & 0x0F;
+        // 9. SUB r, imm16 (Word 1: 0x0200 | r, Word 2: imm16)
+        if ((op & 0xFFF0) == 0x0200) {
+            uint8_t r = static_cast<uint8_t>(op & 0x0F);
             uint16_t imm = fetch_word();
             uint32_t diff = static_cast<uint32_t>(regs.r[r]) - imm;
             update_flags_sub16(regs.r[r], imm, diff);
@@ -218,9 +218,9 @@ struct Z8000Cpu::Impl {
             return 7;
         }
 
-        // 10. CP r, imm16 (0x0300 | (r << 8))
-        if ((op & 0xF00F) == 0x0300) {
-            uint8_t r = (op >> 8) & 0x0F;
+        // 10. CP r, imm16 (Word 1: 0x0300 | r, Word 2: imm16)
+        if ((op & 0xFFF0) == 0x0300) {
+            uint8_t r = static_cast<uint8_t>(op & 0x0F);
             uint16_t imm = fetch_word();
             uint32_t diff = static_cast<uint32_t>(regs.r[r]) - imm;
             update_flags_sub16(regs.r[r], imm, diff);
@@ -282,63 +282,62 @@ struct Z8000Cpu::Impl {
             return 5;
         }
 
-        // 14. PUSH @SP, r (0x9300 | (r << 8))
-        if ((op & 0xF0FF) == 0x9300) {
-            uint8_t r = (op >> 8) & 0x0F;
+        // 14. PUSH @SP, r (Word 1: 0x9300 | r)
+        if ((op & 0xFFF0) == 0x9300) {
+            uint8_t r = static_cast<uint8_t>(op & 0x0F);
             push_word(regs.r[r]);
             return 10;
         }
 
-        // 15. POP r, @SP (0x9200 | (r << 8))
-        if ((op & 0xF0FF) == 0x9200) {
-            uint8_t r = (op >> 8) & 0x0F;
+        // 15. POP r, @SP (Word 1: 0x9200 | r)
+        if ((op & 0xFFF0) == 0x9200) {
+            uint8_t r = static_cast<uint8_t>(op & 0x0F);
             regs.r[r] = pop_word();
             return 8;
         }
 
-        // 16. INB rb, @port (0x3A00 | (rb << 8))
-        if ((op & 0xF0FF) == 0x3A00) {
-            uint8_t rb = (op >> 8) & 0x0F;
+        // 16. INB rb, @port (Word 1: 0x3A00 | rb, Word 2: port)
+        if ((op & 0xFF00) == 0x3A00) {
+            uint8_t rb = static_cast<uint8_t>(op & 0xFF);
             uint16_t port = fetch_word();
-            uint8_t val = bus.io_read_byte(port);
-            regs.set_rb(rb, val);
+            regs.set_rb(rb, bus.io_read_byte(port));
             return 11;
         }
 
-        // 17. OUTB @port, rb (0x3B00 | (rb << 8))
-        if ((op & 0xF0FF) == 0x3B00) {
-            uint8_t rb = (op >> 8) & 0x0F;
+        // 17. OUTB @port, rb (Word 1: 0x3B00 | rb, Word 2: port)
+        if ((op & 0xFF00) == 0x3B00) {
+            uint8_t rb = static_cast<uint8_t>(op & 0xFF);
             uint16_t port = fetch_word();
             bus.io_write_byte(port, regs.get_rb(rb));
             return 11;
         }
 
-        // 18. IN r, @port (0x3C00 | (r << 8))
-        if ((op & 0xF0FF) == 0x3C00) {
-            uint8_t r = (op >> 8) & 0x0F;
+        // 18. IN r, @port (Word 1: 0x3C00 | r, Word 2: port)
+        if ((op & 0xFFF0) == 0x3C00) {
+            uint8_t r = static_cast<uint8_t>(op & 0x0F);
             uint16_t port = fetch_word();
             uint16_t val = bus.io_read_word(port);
             regs.r[r] = val;
             return 11;
         }
 
-        // 19. OUT @port, r (0x3D00 | (r << 8))
-        if ((op & 0xF0FF) == 0x3D00) {
-            uint8_t r = (op >> 8) & 0x0F;
+        // 19. OUT @port, r (Word 1: 0x3D00 | r, Word 2: port)
+        if ((op & 0xFFF0) == 0x3D00) {
+            uint8_t r = static_cast<uint8_t>(op & 0x0F);
             uint16_t port = fetch_word();
             bus.io_write_word(port, regs.r[r]);
             return 11;
         }
 
-        // 20. Special I/O (SINB: 0x3800, SOUTB: 0x3900)
-        if ((op & 0xF0FF) == 0x3800) {
-            uint8_t rb = (op >> 8) & 0x0F;
+        // 20. Special I/O (SINB: 0x3800 | rb, SOUTB: 0x3900 | rb)
+        if ((op & 0xFF00) == 0x3800) {
+            uint8_t rb = static_cast<uint8_t>(op & 0xFF);
             uint16_t port = fetch_word();
             regs.set_rb(rb, bus.special_io_read(port));
             return 12;
         }
-        if ((op & 0xF0FF) == 0x3900) {
-            uint8_t rb = (op >> 8) & 0x0F;
+        if ((op & 0xFF00) == 0x3900) {
+            uint8_t rb = static_cast<uint8_t>(op & 0xFF);
             uint16_t port = fetch_word();
             bus.special_io_write(port, regs.get_rb(rb));
             return 12;

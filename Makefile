@@ -19,5 +19,9 @@ test-headless: build
 test-z8000: build
 	./$(BUILD_DIR)/spc_launcher --test-z8000
 
+test-spc10000: build
+	python3 firmware-spc10000/build_rom.py
+	./$(BUILD_DIR)/spc_launcher --spc10000 --headless 60
+
 clean:
 	rm -rf $(BUILD_DIR)
