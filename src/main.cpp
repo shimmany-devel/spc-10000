@@ -124,8 +124,8 @@ int main(int argc, char* argv[]) {
 
         spc::EmulatorWindow window;
         if (window.init("SPC-10000 16-bit Computer (Z8001 @ 10MHz)")) {
-            // SPC-10000 프레임 루프는 window.run에 전달하거나 루프로 구동
             std::cout << "[System] Running SPC-10000 GUI display.\n";
+            window.run(machine);
         }
         return 0;
     }
@@ -155,6 +155,36 @@ int main(int argc, char* argv[]) {
         const uint8_t gmode = machine.board().vdg().read_gmode();
         const int page = (gmode & 0x30) >> 4;
         std::cout << "[VDG State] GMODE: 0x" << std::hex << (int)gmode << ", Active Text Page: " << page << std::dec << "\n";
+
+        std::cout << "\n[VRAM Non-Zero Summary]:\n";
+        int non_zero_count = 0;
+        for (size_t a = 0; a < 0x2000; ++a) {
+            uint8_t v = machine.board().vdg().read_vram(a);
+            if (v != 0) {
+                if (non_zero_count < 32) {
+                    std::cout << "  Addr 0x" << std::hex << a << ": 0x" << (int)v << std::dec << "\n";
+                }
+                non_zero_count++;
+            }
+        }
+        std::cout << "  Total non-zero VRAM bytes: " << non_zero_count << "\n";
+
+        std::cout << "\n[SPC-1000 Text Page " << page << " Dump]:\n";
+        const int page_start = page * 0x200;
+        for (int r = 0; r < 16; ++r) {
+            std::cout << (r < 10 ? " " : "") << r << ": [";
+            for (int c = 0; c < 32; ++c) {
+                uint8_t ch = machine.board().vdg().read_vram(page_start + r * 32 + c);
+                if (ch >= 32 && ch < 127) {
+                    std::cout << (char)ch;
+                } else if (ch == 0) {
+                    std::cout << " ";
+                } else {
+                    std::cout << ".";
+                }
+            }
+            std::cout << "]\n";
+        }
         return 0;
     }
 

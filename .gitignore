@@ -24,3 +24,4 @@ Thumbs.db
 # Rea & Decompiler temporary files
 rea-workspace/.cache/
 rea-workspace/*.tmp
+tool/rom_analyzer

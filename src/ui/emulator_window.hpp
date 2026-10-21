@@ -1,8 +1,10 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <iostream>
+#include <chrono>
+#include <thread>
 #include <SDL2/SDL.h>
-#include "../sys_spc1000/spc1000_machine.hpp"
 
 namespace spc {
 
@@ -18,7 +20,53 @@ public:
     ~EmulatorWindow();
 
     bool init(const std::string& title);
-    void run(Spc1000Machine& machine);
+
+    template<typename MachineType>
+    void run(MachineType& machine) {
+        bool running = true;
+        SDL_Event event;
+
+        using clock = std::chrono::steady_clock;
+        const std::chrono::nanoseconds frame_duration(1000000000 / 60);
+
+        std::cout << "[EmulatorWindow] Entering emulator main loop (60 FPS)...\n";
+
+        while (running) {
+            auto frame_start = clock::now();
+
+            while (SDL_PollEvent(&event)) {
+                if (event.type == SDL_QUIT) {
+                    running = false;
+                } else if (event.type == SDL_KEYDOWN) {
+                    if (event.key.keysym.sym == SDLK_F10) {
+                        machine.reset();
+                        std::cout << "[EmulatorWindow] Machine Reset\n";
+                    } else {
+                        machine.handle_key_down(event.key.keysym.sym);
+                    }
+                } else if (event.type == SDL_KEYUP) {
+                    machine.handle_key_up(event.key.keysym.sym);
+                }
+            }
+
+            // 60Hz 1프레임 에뮬레이션
+            machine.run_frame();
+
+            // 화면 렌더링
+            machine.render(framebuffer_.data(), NATIVE_WIDTH);
+
+            SDL_UpdateTexture(texture_, nullptr, framebuffer_.data(), NATIVE_WIDTH * sizeof(uint32_t));
+            SDL_RenderClear(renderer_);
+            SDL_RenderCopy(renderer_, texture_, nullptr, nullptr);
+            SDL_RenderPresent(renderer_);
+
+            auto frame_end = clock::now();
+            auto elapsed = frame_end - frame_start;
+            if (elapsed < frame_duration) {
+                std::this_thread::sleep_for(frame_duration - elapsed);
+            }
+        }
+    }
 
 private:
     SDL_Window* window_{nullptr};

@@ -28,20 +28,12 @@ bool Spc1000Board::load_rom(const std::string& filepath) {
     std::streamsize bytes_read = file.gcount();
     std::cout << "[Spc1000Board] Loaded " << bytes_read << " bytes from " << filepath << "\n";
 
-    // FDD 컨트롤러가 미장착된 순수 카세트 베이스 시스템 호환을 위한 벡터 조정:
-    // 0x0000의 JP 0xFB00(FDD ROM)을 기본 카세트 Hu-BASIC 부트 엔트리 0x004A로 연결
-    if (rom_[0] == 0xC3 && rom_[1] == 0x00 && rom_[2] == 0xFB) {
-        std::cout << "[Spc1000Board] Patching reset vector 0x0000: JP FB00h -> JP 004Ah (Cassette BASIC boot)\n";
-        rom_[1] = 0x4A;
-        rom_[2] = 0x00;
-    }
-
     return bytes_read > 0;
 }
 
 uint8_t Spc1000Board::mem_read(uint16_t addr) {
-    if (iplk_ && addr < ROM_SIZE) {
-        return rom_[addr];
+    if (iplk_) {
+        return rom_[addr & 0x7FFF];
     }
     return ram_[addr];
 }

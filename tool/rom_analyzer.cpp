@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
     disassemble_range(rom, 0x0000, 0x0080);
 
     std::cout << "\n=== Startup Routine (0x06A4) ===\n";
-    disassemble_range(rom, 0x0D90, 0x0DC0);
+    disassemble_range(rom, 0x08D5, 0x0910);
 
     return 0;
 }

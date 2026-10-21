@@ -104,7 +104,7 @@ Keyboard::Keyboard() {
 }
 
 void Keyboard::reset() {
-    matrix_.fill(0x00);
+    matrix_.fill(0xFF);
 }
 
 uint8_t Keyboard::read_matrix(uint16_t port) const {
@@ -112,16 +112,16 @@ uint8_t Keyboard::read_matrix(uint16_t port) const {
     if (row < matrix_.size()) {
         return matrix_[row];
     }
-    return 0x00;
+    return 0xFF;
 }
 
 void Keyboard::update_key(SDL_Keycode sym, bool pressed) {
     for (const auto& entry : kKeyTable) {
         if (entry.sym == sym) {
             if (pressed) {
-                matrix_[entry.row] |= entry.mask;
+                matrix_[entry.row] &= ~entry.mask; // Active-low
             } else {
-                matrix_[entry.row] &= ~entry.mask;
+                matrix_[entry.row] |= entry.mask;
             }
         }
     }
