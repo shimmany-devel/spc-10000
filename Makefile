@@ -4,10 +4,10 @@ BUILD_DIR ?= build
 
 all: build
 
-$(BUILD_DIR):
+$(BUILD_DIR)/CMakeCache.txt: CMakeLists.txt
 	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Debug
 
-build: $(BUILD_DIR)
+build: $(BUILD_DIR)/CMakeCache.txt
 	cmake --build $(BUILD_DIR) -j$$(nproc 2>/dev/null || echo 4)
 
 run: build
