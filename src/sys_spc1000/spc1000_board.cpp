@@ -28,7 +28,28 @@ bool Spc1000Board::load_rom(const std::string& filepath) {
     std::streamsize bytes_read = file.gcount();
     std::cout << "[Spc1000Board] Loaded " << bytes_read << " bytes from " << filepath << "\n";
 
-    return bytes_read > 0;
+    if (bytes_read > 0) {
+        // 현대 PC 키보드 자판 레이아웃 호환 패치 (:, ", +, -, @ 등 특수기호 매핑 보정)
+        rom_[0x1311] = 0x27; // '
+        rom_[0x1320] = 0x3d; // =
+        rom_[0x1331] = 0x7c; // |
+        rom_[0x1341] = 0x5d; // ]
+        rom_[0x1346] = 0x60; // `
+        rom_[0x1350] = 0x7f;
+        rom_[0x1351] = 0x29; // )
+        rom_[0x1352] = 0x3a; // :
+        rom_[0x1355] = 0x28; // (
+        rom_[0x1359] = 0x22; // "
+        rom_[0x135d] = 0x2a; // *
+        rom_[0x1365] = 0x26; // &
+        rom_[0x1368] = 0x2b; // +
+        rom_[0x136d] = 0x5e; // ^
+        rom_[0x1379] = 0x5c; // backslash
+        rom_[0x138d] = 0x40; // @
+        rom_[0x138e] = 0x7e; // ~
+        return true;
+    }
+    return false;
 }
 
 uint8_t Spc1000Board::mem_read(uint16_t addr) {

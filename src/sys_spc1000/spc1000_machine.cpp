@@ -23,6 +23,8 @@ void Spc1000Machine::reset() {
 }
 
 void Spc1000Machine::run_frame() {
+    board_.keyboard().tick_frame();
+
     // 1프레임 동안 Z80 CPU 실행 (66,666 사이클)
     // 수직 블랭킹 전후로 인터럽트 시점 모사
     constexpr uint32_t ACTIVE_CYCLES = (CYCLES_PER_FRAME * 5) / 6;
