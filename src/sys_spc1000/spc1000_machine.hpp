@@ -29,6 +29,17 @@ public:
     void handle_key_down(SDL_Keycode sym);
     void handle_key_up(SDL_Keycode sym);
 
+    // 카세트 테이프 제어
+    bool mount_tape(const std::string& path);
+    bool record_tape(const std::string& path);
+    void cassette_play();
+    void cassette_rec();
+    void cassette_stop();
+
+    // 시스템 스냅샷 (Save State / Load State)
+    bool save_snapshot(const std::string& path = "spc1000.sav");
+    bool load_snapshot(const std::string& path = "spc1000.sav");
+
     Spc1000Board& board() { return board_; }
     Z80Cpu& cpu() { return *cpu_; }
 

@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <memory>
+#include <iosfwd>
 #include "bus_interface.hpp"
 
 namespace spc {
@@ -25,9 +26,11 @@ public:
     // 인터럽트 요청 (VBLANK 등)
     void trigger_irq();
 
-    // 레지스터 접근자
     uint16_t pc() const;
     uint16_t sp() const;
+
+    void save_state(std::ostream& os);
+    void load_state(std::istream& is);
 
 private:
     struct Impl;

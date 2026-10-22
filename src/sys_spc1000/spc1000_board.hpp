@@ -3,6 +3,7 @@
 #include <array>
 #include <vector>
 #include <string>
+#include <iosfwd>
 #include "../core/z80/bus_interface.hpp"
 #include "../hw/vdg_mc6847.hpp"
 #include "../hw/psg_ay8910.hpp"
@@ -38,6 +39,9 @@ public:
 
     uint8_t* ram_data() { return ram_.data(); }
     uint8_t* rom_data() { return rom_.data(); }
+
+    void save_state(std::ostream& os);
+    void load_state(std::istream& is);
 
 private:
     std::array<uint8_t, RAM_SIZE> ram_{};

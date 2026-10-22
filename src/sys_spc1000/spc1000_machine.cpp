@@ -1,5 +1,7 @@
 #include "spc1000_machine.hpp"
 #include <iostream>
+#include <fstream>
+#include <cstring>
 
 namespace spc {
 
@@ -48,6 +50,77 @@ void Spc1000Machine::handle_key_down(SDL_Keycode sym) {
 
 void Spc1000Machine::handle_key_up(SDL_Keycode sym) {
     board_.keyboard().handle_key_up(sym);
+}
+
+bool Spc1000Machine::mount_tape(const std::string& path) {
+    return board_.cassette().mount_read_tape(path);
+}
+
+bool Spc1000Machine::record_tape(const std::string& path) {
+    return board_.cassette().mount_write_tape(path);
+}
+
+void Spc1000Machine::cassette_play() {
+    board_.cassette().press_play();
+}
+
+void Spc1000Machine::cassette_rec() {
+    board_.cassette().press_rec();
+}
+
+void Spc1000Machine::cassette_stop() {
+    board_.cassette().press_stop();
+}
+
+bool Spc1000Machine::save_snapshot(const std::string& path) {
+    std::ofstream os(path, std::ios::binary);
+    if (!os.is_open()) {
+        std::cerr << "[Snapshot] Failed to create snapshot file: " << path << "\n";
+        return false;
+    }
+
+    const char magic[8] = {'S', 'P', 'C', '1', 'K', 'S', 'A', 'V'};
+    os.write(magic, 8);
+    uint32_t version = 1;
+    os.write(reinterpret_cast<const char*>(&version), sizeof(version));
+
+    // 1. CPU
+    cpu_->save_state(os);
+    // 2. Board (RAM, IPLK, VDG, PSG, Cassette)
+    board_.save_state(os);
+
+    std::cout << "[Snapshot] Successfully saved state to " << path << "\n";
+    return true;
+}
+
+bool Spc1000Machine::load_snapshot(const std::string& path) {
+    std::ifstream is(path, std::ios::binary);
+    if (!is.is_open()) {
+        std::cerr << "[Snapshot] Snapshot file not found: " << path << "\n";
+        return false;
+    }
+
+    char magic[8];
+    is.read(magic, 8);
+    if (std::memcmp(magic, "SPC1KSAV", 8) != 0) {
+        std::cerr << "[Snapshot] Invalid snapshot magic in " << path << "\n";
+        return false;
+    }
+    uint32_t version = 0;
+    is.read(reinterpret_cast<char*>(&version), sizeof(version));
+    if (version != 1) {
+        std::cerr << "[Snapshot] Unsupported snapshot version: " << version << "\n";
+        return false;
+    }
+
+    // 1. CPU
+    cpu_->load_state(is);
+    // 2. Board (RAM, IPLK, VDG, PSG, Cassette)
+    board_.load_state(is);
+
+    std::cout << "[Snapshot] Successfully restored state from " << path 
+              << " (PC: 0x" << std::hex << cpu_->pc() << std::dec << ")\n";
+    return true;
 }
 
 } // namespace spc

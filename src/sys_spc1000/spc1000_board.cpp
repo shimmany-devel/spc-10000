@@ -89,6 +89,9 @@ uint8_t Spc1000Board::io_read(uint16_t port) {
     // 5. PSG 사운드 데이터 읽기 (0x4001)
     if ((port & 0xFFFE) == 0x4000) {
         if (port & 0x01) {
+            if (psg_.selected_register() == 14) {
+                return cassette_.read_io();
+            }
             return psg_.read_data();
         }
     }
@@ -130,6 +133,22 @@ void Spc1000Board::io_write(uint16_t port, uint8_t val) {
         cassette_.write_control(val);
         return;
     }
+}
+
+void Spc1000Board::save_state(std::ostream& os) {
+    os.write(reinterpret_cast<const char*>(ram_.data()), ram_.size());
+    os.write(reinterpret_cast<const char*>(&iplk_), sizeof(iplk_));
+    vdg_.save_state(os);
+    psg_.save_state(os);
+    cassette_.save_state(os);
+}
+
+void Spc1000Board::load_state(std::istream& is) {
+    is.read(reinterpret_cast<char*>(ram_.data()), ram_.size());
+    is.read(reinterpret_cast<char*>(&iplk_), sizeof(iplk_));
+    vdg_.load_state(is);
+    psg_.load_state(is);
+    cassette_.load_state(is);
 }
 
 } // namespace spc

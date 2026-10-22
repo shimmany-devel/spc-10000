@@ -69,6 +69,9 @@ int main(int argc, char* argv[]) {
     std::cout << "========================================================\n";
 
     std::string rom_path = "reference/roms/spc1000.rom";
+    std::string tape_path = "";
+    std::string rec_tape_path = "";
+    std::string load_state_path = "";
     bool headless = false;
     bool run_spc10000 = false;
     int test_frames = 60;
@@ -86,6 +89,29 @@ int main(int argc, char* argv[]) {
             return run_z8000_unit_tests() ? 0 : 1;
         } else if (arg == "--rom" && i + 1 < argc) {
             rom_path = argv[++i];
+        } else if (arg == "--tape" && i + 1 < argc) {
+            tape_path = argv[++i];
+        } else if (arg == "--record-tape" && i + 1 < argc) {
+            rec_tape_path = argv[++i];
+        } else if (arg == "--load-state" && i + 1 < argc) {
+            load_state_path = argv[++i];
+        } else if (arg == "--help" || arg == "-h") {
+            std::cout << "Usage: spc1000 [options]\n"
+                      << "  --spc10000              Run in SPC-10000 (16-bit Z8000) mode\n"
+                      << "  --rom <path>            Set ROM path (default: reference/roms/spc1000.rom)\n"
+                      << "  --tape <path>           Mount virtual cassette tape file (.tap)\n"
+                      << "  --record-tape <path>    Mount cassette for recording (.tap)\n"
+                      << "  --load-state <path>     Restore saved state snapshot file\n"
+                      << "  --headless [frames]     Run without GUI window for N frames\n"
+                      << "  --test-z8000            Execute Z8000 CPU self-test suite\n\n"
+                      << "Shortcuts in GUI window:\n"
+                      << "  F8        : Cassette Tape PLAY\n"
+                      << "  F9        : Cassette Tape REC\n"
+                      << "  F10       : Cassette Tape STOP\n"
+                      << "  F12       : Machine Hardware Reset\n"
+                      << "  PageUp    : Save Quick Snapshot (spc1000_snapshot.sav)\n"
+                      << "  PageDown  : Load Quick Snapshot (spc1000_snapshot.sav)\n";
+            return 0;
         }
     }
 
@@ -140,6 +166,25 @@ int main(int argc, char* argv[]) {
 
     std::cout << "[System] SPC-1000 Hardware initialized. PC: 0x" 
               << std::hex << machine.pc() << std::dec << "\n";
+
+    if (!tape_path.empty()) {
+        if (machine.mount_tape(tape_path)) {
+            std::cout << "[Cassette] Mounted tape file: " << tape_path << "\n";
+        }
+    }
+    if (!rec_tape_path.empty()) {
+        if (machine.record_tape(rec_tape_path)) {
+            std::cout << "[Cassette] Mounted recording tape file: " << rec_tape_path << "\n";
+        }
+    }
+    if (!load_state_path.empty()) {
+        if (machine.load_snapshot(load_state_path)) {
+            std::cout << "[Snapshot] Loaded state snapshot: " << load_state_path << "\n";
+        }
+    }
+
+    std::cout << "\n[Controls] F8: Tape PLAY | F9: Tape REC | F10: Tape STOP | F12: Reset\n"
+              << "[Controls] PageUp: Quick Save State | PageDown: Quick Restore State\n\n";
 
     if (headless) {
         std::cout << "[System] Running in headless test mode for " << test_frames << " frames...\n";

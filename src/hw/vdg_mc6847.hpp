@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <array>
+#include <iosfwd>
 #include <vector>
 
 namespace spc {
@@ -28,6 +29,9 @@ public:
 
     // VRAM 직접 접근 포인터
     uint8_t* vram_data() { return vram_.data(); }
+
+    void save_state(std::ostream& os);
+    void load_state(std::istream& is);
 
 private:
     void render_text_mode(uint32_t* fb, int pitch);

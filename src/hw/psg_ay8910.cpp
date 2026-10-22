@@ -1,4 +1,5 @@
 #include "psg_ay8910.hpp"
+#include <iostream>
 
 namespace spc {
 
@@ -31,6 +32,18 @@ uint8_t PsgAy8910::read_data() {
         return regs_[selected_reg_];
     }
     return 0xFF;
+}
+
+void PsgAy8910::save_state(std::ostream& os) {
+    os.write(reinterpret_cast<const char*>(regs_.data()), regs_.size());
+    os.write(reinterpret_cast<const char*>(&selected_reg_), sizeof(selected_reg_));
+    os.write(reinterpret_cast<const char*>(&cassette_input_), sizeof(cassette_input_));
+}
+
+void PsgAy8910::load_state(std::istream& is) {
+    is.read(reinterpret_cast<char*>(regs_.data()), regs_.size());
+    is.read(reinterpret_cast<char*>(&selected_reg_), sizeof(selected_reg_));
+    is.read(reinterpret_cast<char*>(&cassette_input_), sizeof(cassette_input_));
 }
 
 } // namespace spc

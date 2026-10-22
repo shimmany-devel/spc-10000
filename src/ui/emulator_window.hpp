@@ -38,11 +38,34 @@ public:
                 if (event.type == SDL_QUIT) {
                     running = false;
                 } else if (event.type == SDL_KEYDOWN) {
-                    if (event.key.keysym.sym == SDLK_F10) {
-                        machine.reset();
-                        std::cout << "[EmulatorWindow] Machine Reset\n";
-                    } else {
-                        machine.handle_key_down(event.key.keysym.sym);
+                    switch (event.key.keysym.sym) {
+                        case SDLK_F8:
+                            std::cout << "[EmulatorWindow] Cassette: PLAY\n";
+                            machine.cassette_play();
+                            break;
+                        case SDLK_F9:
+                            std::cout << "[EmulatorWindow] Cassette: REC\n";
+                            machine.cassette_rec();
+                            break;
+                        case SDLK_F10:
+                            std::cout << "[EmulatorWindow] Cassette: STOP\n";
+                            machine.cassette_stop();
+                            break;
+                        case SDLK_F12:
+                            std::cout << "[EmulatorWindow] Machine Reset\n";
+                            machine.reset();
+                            break;
+                        case SDLK_PAGEUP:
+                            std::cout << "[EmulatorWindow] Saving quick snapshot (spc1000_snapshot.sav)...\n";
+                            machine.save_snapshot("spc1000_snapshot.sav");
+                            break;
+                        case SDLK_PAGEDOWN:
+                            std::cout << "[EmulatorWindow] Loading quick snapshot (spc1000_snapshot.sav)...\n";
+                            machine.load_snapshot("spc1000_snapshot.sav");
+                            break;
+                        default:
+                            machine.handle_key_down(event.key.keysym.sym);
+                            break;
                     }
                 } else if (event.type == SDL_KEYUP) {
                     machine.handle_key_up(event.key.keysym.sym);

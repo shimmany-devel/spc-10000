@@ -102,4 +102,14 @@ uint16_t Z80Cpu::sp() const {
     return pimpl_->cpu.sp;
 }
 
+void Z80Cpu::save_state(std::ostream& os) {
+    os.write(reinterpret_cast<const char*>(&pimpl_->cpu), sizeof(pimpl_->cpu));
+    os.write(reinterpret_cast<const char*>(&pimpl_->pins), sizeof(pimpl_->pins));
+}
+
+void Z80Cpu::load_state(std::istream& is) {
+    is.read(reinterpret_cast<char*>(&pimpl_->cpu), sizeof(pimpl_->cpu));
+    is.read(reinterpret_cast<char*>(&pimpl_->pins), sizeof(pimpl_->pins));
+}
+
 } // namespace spc

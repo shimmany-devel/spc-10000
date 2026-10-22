@@ -2,6 +2,7 @@
 #include "font_rom.hpp"
 #include <cstring>
 #include <algorithm>
+#include <iostream>
 
 namespace spc {
 
@@ -113,6 +114,16 @@ void VdgMc6847::render_graphic_mode(uint32_t* fb, int pitch) {
             }
         }
     }
+}
+
+void VdgMc6847::save_state(std::ostream& os) {
+    os.write(reinterpret_cast<const char*>(vram_.data()), vram_.size());
+    os.write(reinterpret_cast<const char*>(&gmode_), sizeof(gmode_));
+}
+
+void VdgMc6847::load_state(std::istream& is) {
+    is.read(reinterpret_cast<char*>(vram_.data()), vram_.size());
+    is.read(reinterpret_cast<char*>(&gmode_), sizeof(gmode_));
 }
 
 } // namespace spc
