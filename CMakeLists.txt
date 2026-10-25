@@ -8,9 +8,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Compiler flags
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     add_compile_options(-Wall -Wextra -Wno-unused-parameter -O2)
+elseif (MSVC)
+    add_compile_options(/W4 /O2 /EHsc /utf-8)
 endif()
 
-# Find SDL2
+# Find SDL2 (Supports vcpkg, standard package, and config mode)
 find_package(SDL2 REQUIRED)
 
 # Include directories
@@ -41,8 +43,20 @@ set(SOURCES
     src/main.cpp
 )
 
+# Determine SDL2 link target / library
+if (TARGET SDL2::SDL2)
+    set(SPC_SDL2_LIB SDL2::SDL2)
+    if (TARGET SDL2::SDL2main)
+        list(APPEND SPC_SDL2_LIB SDL2::SDL2main)
+    endif()
+elseif (TARGET SDL2::SDL2-static)
+    set(SPC_SDL2_LIB SDL2::SDL2-static)
+else()
+    set(SPC_SDL2_LIB ${SDL2_LIBRARIES})
+endif()
+
 add_executable(spc_launcher ${SOURCES})
-target_link_libraries(spc_launcher PRIVATE ${SDL2_LIBRARIES})
+target_link_libraries(spc_launcher PRIVATE ${SPC_SDL2_LIB})
 
 # Test executable for snapshot and cassette verification
 add_executable(test_snapshot_and_cassette
@@ -55,7 +69,7 @@ add_executable(test_snapshot_and_cassette
     src/sys_spc1000/spc1000_board.cpp
     src/sys_spc1000/spc1000_machine.cpp
 )
-target_link_libraries(test_snapshot_and_cassette PRIVATE ${SDL2_LIBRARIES})
+target_link_libraries(test_snapshot_and_cassette PRIVATE ${SPC_SDL2_LIB})
 
 # Tape load and run verification tool
 add_executable(test_tape_load
@@ -68,6 +82,6 @@ add_executable(test_tape_load
     src/sys_spc1000/spc1000_board.cpp
     src/sys_spc1000/spc1000_machine.cpp
 )
-target_link_libraries(test_tape_load PRIVATE ${SDL2_LIBRARIES})
+target_link_libraries(test_tape_load PRIVATE ${SPC_SDL2_LIB})
 
 message(STATUS "Configured SPC-1000 / SPC-10000 Architecture")

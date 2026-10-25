@@ -102,9 +102,25 @@ public:
                     const auto& samples = machine.board().psg().sample_buffer();
                     if (!samples.empty()) {
                         uint32_t queued = SDL_GetQueuedAudioSize(audio_device_);
-                        if (queued < (44100 * sizeof(float)) / 10) {
-                            SDL_QueueAudio(audio_device_, samples.data(), samples.size() * sizeof(float));
+                        constexpr uint32_t BYTES_PER_SEC = 44100 * sizeof(float);
+                        constexpr uint32_t PREBUFFER_BYTES = (BYTES_PER_SEC * 45) / 1000; // 45ms 여유 버퍼
+                        constexpr uint32_t MAX_QUEUED_BYTES = (BYTES_PER_SEC * 90) / 1000; // 최대 90ms
+
+                        // 버퍼 언더런 방지: 큐가 비어있을 때 최소 프리버퍼 무음 채움
+                        if (queued == 0) {
+                            std::vector<float> silence(PREBUFFER_BYTES / sizeof(float), 0.0f);
+                            SDL_QueueAudio(audio_device_, silence.data(), silence.size() * sizeof(float));
                         }
+
+                        // 과도한 레이턴시 누적 방지 (드롭아웃/팝 방지하면서 큐 유지)
+                        if (queued > MAX_QUEUED_BYTES) {
+                            // 지연이 90ms를 초과하여 너무 커진 경우, 큐를 초기화하고 적정 버퍼로 재설정
+                            SDL_ClearQueuedAudio(audio_device_);
+                            std::vector<float> silence(PREBUFFER_BYTES / sizeof(float), 0.0f);
+                            SDL_QueueAudio(audio_device_, silence.data(), silence.size() * sizeof(float));
+                        }
+                        
+                        SDL_QueueAudio(audio_device_, samples.data(), samples.size() * sizeof(float));
                         machine.board().psg().clear_samples();
                     }
                 }

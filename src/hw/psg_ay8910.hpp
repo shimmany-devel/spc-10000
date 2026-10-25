@@ -10,7 +10,8 @@ namespace spc {
 class PsgAy8910 {
 public:
     static constexpr int SAMPLE_RATE = 44100;
-    static constexpr int CLOCK_HZ = 4000000; // 4.0 MHz
+    static constexpr int CLOCK_HZ = 1789772; // 1.789772 MHz (SPC-1000 NTSC 3.579545MHz / 2)
+    static constexpr int CPU_CLOCK_HZ = 4000000; // 4.0 MHz (Z80 CPU)
 
     PsgAy8910();
     ~PsgAy8910();
@@ -47,6 +48,7 @@ private:
     uint8_t selected_reg_{0};
     uint8_t cassette_input_{0xFF};
     std::vector<float> sample_buffer_;
+    uint64_t cycle_accumulator_{0};
 };
 
 } // namespace spc

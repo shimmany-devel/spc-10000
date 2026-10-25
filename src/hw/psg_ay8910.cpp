@@ -14,7 +14,7 @@ struct PsgAy8910::Impl {
         desc.type = AY38910_TYPE_8910;
         desc.tick_hz = CLOCK_HZ;
         desc.sound_hz = SAMPLE_RATE;
-        desc.magnitude = 0.5f;
+        desc.magnitude = 0.25f; // 3채널 합산 시 왜곡 방지 적정 진폭
         ay38910_init(&ay, &desc);
     }
 
@@ -33,6 +33,7 @@ void PsgAy8910::reset() {
     regs_.fill(0x00);
     selected_reg_ = 0;
     cassette_input_ = 0xFF;
+    cycle_accumulator_ = 0;
     sample_buffer_.clear();
     sample_buffer_.reserve(2048);
     if (pimpl_) {
@@ -69,9 +70,16 @@ uint8_t PsgAy8910::read_data() {
 
 void PsgAy8910::step_cycles(uint32_t cycles) {
     if (!pimpl_) return;
-    for (uint32_t i = 0; i < cycles; ++i) {
+    // Z80 CPU(4.0MHz) 사이클을 AY-3-8910 PSG(1.789772MHz) 클럭으로 비례 분주
+    cycle_accumulator_ += static_cast<uint64_t>(cycles) * CLOCK_HZ;
+    while (cycle_accumulator_ >= CPU_CLOCK_HZ) {
+        cycle_accumulator_ -= CPU_CLOCK_HZ;
         if (ay38910_tick(&pimpl_->ay)) {
-            sample_buffer_.push_back(pimpl_->ay.sample);
+            float s = pimpl_->ay.sample;
+            // 부드러운 클램핑 (DAC 오버플로우/디지털 클리핑 찢어짐 방지)
+            if (s > 0.95f) s = 0.95f;
+            else if (s < -0.95f) s = -0.95f;
+            sample_buffer_.push_back(s);
         }
     }
 }
