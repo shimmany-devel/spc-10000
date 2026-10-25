@@ -29,10 +29,12 @@ public:
         using clock = std::chrono::steady_clock;
         const std::chrono::nanoseconds frame_duration(1000000000 / 60);
 
-        std::cout << "[EmulatorWindow] Entering emulator main loop (60 FPS)...\n";
+        std::cout << "[EmulatorWindow] Entering emulator main loop (60.0 FPS precision pacer)...\n";
+
+        auto next_frame_time = clock::now();
 
         while (running) {
-            auto frame_start = clock::now();
+            next_frame_time += frame_duration;
 
             while (SDL_PollEvent(&event)) {
                 if (event.type == SDL_QUIT) {
@@ -91,11 +93,22 @@ public:
             SDL_RenderCopy(renderer_, texture_, nullptr, nullptr);
             SDL_RenderPresent(renderer_);
 
-            auto frame_end = clock::now();
-            auto elapsed = frame_end - frame_start;
-            // 카세트 모터가 꺼져 있을 때만 정속 60 FPS 슬립 유지
-            if (!machine.is_cassette_motor_on() && elapsed < frame_duration) {
-                std::this_thread::sleep_for(frame_duration - elapsed);
+            // 정밀 하이브리드 프레임 페이싱 (카세트 터보 중이 아닐 때)
+            if (machine.is_cassette_motor_on()) {
+                next_frame_time = clock::now();
+            } else {
+                auto now = clock::now();
+                if (now < next_frame_time) {
+                    auto remaining = next_frame_time - now;
+                    if (remaining > std::chrono::milliseconds(2)) {
+                        std::this_thread::sleep_for(remaining - std::chrono::milliseconds(1));
+                    }
+                    while (clock::now() < next_frame_time) {
+                        std::this_thread::yield();
+                    }
+                } else if (now > next_frame_time + frame_duration * 3) {
+                    next_frame_time = now;
+                }
             }
         }
     }

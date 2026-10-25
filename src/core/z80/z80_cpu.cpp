@@ -10,6 +10,7 @@ struct Z80Cpu::Impl {
     IBus& bus;
     z80_t cpu{};
     uint64_t pins{0};
+    uint32_t irq_pulse_cycles{0};
 
     explicit Impl(IBus& b) : bus(b) {
         pins = z80_init(&cpu);
@@ -17,6 +18,7 @@ struct Z80Cpu::Impl {
 
     void reset() {
         pins = z80_reset(&cpu);
+        irq_pulse_cycles = 0;
     }
 
     void prefetch(uint16_t pc) {
@@ -24,6 +26,13 @@ struct Z80Cpu::Impl {
     }
 
     uint64_t tick_single(uint64_t p) {
+        if (irq_pulse_cycles > 0) {
+            irq_pulse_cycles--;
+            if (irq_pulse_cycles == 0) {
+                p &= ~Z80_INT;
+            }
+        }
+
         p = z80_tick(&cpu, p);
         const uint16_t addr = Z80_GET_ADDR(p);
 
@@ -40,6 +49,7 @@ struct Z80Cpu::Impl {
                 // Interrupt Acknowledge: clear INT line and supply RST 38h
                 Z80_SET_DATA(p, 0xFF);
                 p &= ~Z80_INT;
+                irq_pulse_cycles = 0;
             } else if (p & Z80_RD) {
                 uint8_t data = bus.io_read(addr);
                 Z80_SET_DATA(p, data);
@@ -90,8 +100,9 @@ uint32_t Z80Cpu::step_instruction() {
 }
 
 void Z80Cpu::trigger_irq() {
-    // Assert INT pin for next cycles
+    // Assert INT pin with hardware pulse width (64 T-cycles)
     pimpl_->pins |= Z80_INT;
+    pimpl_->irq_pulse_cycles = 64;
 }
 
 uint16_t Z80Cpu::pc() const {
