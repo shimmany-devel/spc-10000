@@ -35,6 +35,8 @@ public:
     void cassette_play();
     void cassette_rec();
     void cassette_stop();
+    void cassette_rewind() {}
+    bool is_cassette_motor_on() const { return false; }
 
     // 시스템 스냅샷 (Save State / Load State)
     bool save_snapshot(const std::string& path = "spc10000.sav");

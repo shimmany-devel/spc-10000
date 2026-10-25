@@ -39,6 +39,10 @@ public:
                     running = false;
                 } else if (event.type == SDL_KEYDOWN) {
                     switch (event.key.keysym.sym) {
+                        case SDLK_F7:
+                            std::cout << "[EmulatorWindow] Cassette: REWIND\n";
+                            machine.cassette_rewind();
+                            break;
                         case SDLK_F8:
                             std::cout << "[EmulatorWindow] Cassette: PLAY\n";
                             machine.cassette_play();
@@ -72,8 +76,12 @@ public:
                 }
             }
 
-            // 60Hz 1프레임 에뮬레이션
+            // 카세트 모터 작동 중(LOAD/SAVE)에는 초고속 터보 모드 (16배속 및 딜레이 스킵)
+            int extra_frames = machine.is_cassette_motor_on() ? 15 : 0;
             machine.run_frame();
+            for (int i = 0; i < extra_frames && machine.is_cassette_motor_on(); ++i) {
+                machine.run_frame();
+            }
 
             // 화면 렌더링
             machine.render(framebuffer_.data(), NATIVE_WIDTH);
@@ -85,7 +93,8 @@ public:
 
             auto frame_end = clock::now();
             auto elapsed = frame_end - frame_start;
-            if (elapsed < frame_duration) {
+            // 카세트 모터가 꺼져 있을 때만 정속 60 FPS 슬립 유지
+            if (!machine.is_cassette_motor_on() && elapsed < frame_duration) {
                 std::this_thread::sleep_for(frame_duration - elapsed);
             }
         }

@@ -1,4 +1,6 @@
 #include "cassette.hpp"
+#include <vector>
+#include <algorithm>
 
 namespace spc {
 
@@ -16,18 +18,68 @@ void Cassette::reset() {
     pulse_ = false;
     read_ready_ = false;
     control_val_ = 0;
+    read_phase_ = ReadPhase::EDGE_LOW;
+    current_bit_ = 1;
+    bit_index_ = 0;
 }
 
 bool Cassette::mount_read_tape(const std::string& filepath) {
     press_stop();
     tape_path_ = filepath;
-    read_file_.open(filepath, std::ios::binary);
-    if (!read_file_.is_open()) {
+    tape_bits_.clear();
+    bit_index_ = 0;
+    read_phase_ = ReadPhase::EDGE_LOW;
+
+    std::ifstream file(filepath, std::ios::binary);
+    if (!file.is_open()) {
         std::cerr << "[Cassette] Failed to open tape file for reading: " << filepath << "\n";
         return false;
     }
+
+    std::vector<uint8_t> file_bytes((std::istreambuf_iterator<char>(file)),
+                                     std::istreambuf_iterator<char>());
+    file.close();
+
+    if (file_bytes.empty()) {
+        std::cerr << "[Cassette] Tape file is empty: " << filepath << "\n";
+        return false;
+    }
+
+    // CAS 포맷 확인 (16바이트 매직 헤더: "SPC-1000.CASfmt ")
+    bool is_cas = false;
+    if (file_bytes.size() >= 16) {
+        std::string magic(reinterpret_cast<const char*>(file_bytes.data()), 16);
+        if (magic == "SPC-1000.CASfmt ") {
+            is_cas = true;
+        }
+    }
+
+    if (is_cas) {
+        // CAS 포맷: 헤더 16바이트 제외, 각 바이트를 상위 비트부터 (Bit 7 -> Bit 0) 풀어서 비트 배열로 저장
+        tape_bits_.reserve((file_bytes.size() - 16) * 8);
+        for (size_t i = 16; i < file_bytes.size(); ++i) {
+            uint8_t b = file_bytes[i];
+            for (int j = 7; j >= 0; --j) {
+                tape_bits_.push_back((b >> j) & 1);
+            }
+        }
+        std::cout << "[Cassette] Mounted .CAS tape: " << filepath 
+                  << " (" << tape_bits_.size() << " bits, " << (file_bytes.size() - 16) << " bytes payload)\n";
+    } else {
+        // TAP 포맷: '0'(0x30)과 '1'(0x31) 텍스트 문자로 구성
+        tape_bits_.reserve(file_bytes.size());
+        for (uint8_t c : file_bytes) {
+            if (c == '0') {
+                tape_bits_.push_back(0);
+            } else if (c == '1') {
+                tape_bits_.push_back(1);
+            }
+        }
+        std::cout << "[Cassette] Mounted .TAP tape: " << filepath 
+                  << " (" << tape_bits_.size() << " bits)\n";
+    }
+
     button_ = TapeButton::PLAY;
-    std::cout << "[Cassette] Mounted tape for PLAY: " << filepath << "\n";
     return true;
 }
 
@@ -48,7 +100,7 @@ void Cassette::press_play() {
     if (button_ == TapeButton::REC) {
         press_stop();
     }
-    if (!read_file_.is_open()) {
+    if (tape_bits_.empty() && !tape_path_.empty()) {
         mount_read_tape(tape_path_);
     } else {
         button_ = TapeButton::PLAY;
@@ -71,14 +123,17 @@ void Cassette::press_rec() {
 void Cassette::press_stop() {
     button_ = TapeButton::STOP;
     motor_on_ = false;
-    if (read_file_.is_open()) {
-        read_file_.close();
-    }
     if (write_file_.is_open()) {
         write_file_.flush();
         write_file_.close();
     }
     std::cout << "[Cassette] Button -> STOP\n";
+}
+
+void Cassette::rewind() {
+    bit_index_ = 0;
+    read_phase_ = ReadPhase::EDGE_LOW;
+    std::cout << "[Cassette] Tape rewound to beginning.\n";
 }
 
 void Cassette::write_control(uint8_t val) {
@@ -116,13 +171,29 @@ void Cassette::write_control(uint8_t val) {
 uint8_t Cassette::read_io() {
     uint8_t retval = 0x1F;
 
-    // 0x80: 테이프 직렬 비트 데이터 입력
-    if (button_ == TapeButton::PLAY && motor_on_ && read_ready_) {
-        int bit = read_next_bit();
-        if (bit == 1) {
-            retval |= 0x80;
-        } else {
-            retval &= ~0x80;
+    // 0x80: 테이프 직렬 비트 데이터 입력 (상승 엣지 FSM)
+    if (button_ == TapeButton::PLAY && motor_on_) {
+        switch (read_phase_) {
+            case ReadPhase::EDGE_LOW:
+                // 1단계: 0x023B 하강 레벨 감지 (Bit 7 = 0)
+                retval &= ~0x80;
+                read_phase_ = ReadPhase::EDGE_HIGH;
+                break;
+            case ReadPhase::EDGE_HIGH:
+                // 2단계: 0x024F 상승 엣지 감지 (Bit 7 = 1) -> 0x0230 루틴 통과!
+                retval |= 0x80;
+                read_phase_ = ReadPhase::DATA_BIT;
+                break;
+            case ReadPhase::DATA_BIT:
+                // 3단계: 0x026E 실제 데이터 비트 샘플링
+                current_bit_ = read_next_bit();
+                if (current_bit_ == 1) {
+                    retval |= 0x80;
+                } else {
+                    retval &= ~0x80;
+                }
+                read_phase_ = ReadPhase::EDGE_LOW;
+                break;
         }
     }
 
@@ -137,14 +208,8 @@ uint8_t Cassette::read_io() {
 }
 
 int Cassette::read_next_bit() {
-    if (!read_file_.is_open() || read_file_.eof()) {
-        return 1;
-    }
-    char c = 0;
-    while (read_file_.get(c)) {
-        if (c == '0') return 0;
-        if (c == '1') return 1;
-        // 공백, 줄바꿈 등 기타 문자는 건너뜀
+    if (bit_index_ < tape_bits_.size()) {
+        return tape_bits_[bit_index_++];
     }
     return 1;
 }
@@ -156,6 +221,9 @@ void Cassette::save_state(std::ostream& os) {
     os.write(reinterpret_cast<const char*>(&pulse_), sizeof(pulse_));
     os.write(reinterpret_cast<const char*>(&read_ready_), sizeof(read_ready_));
     os.write(reinterpret_cast<const char*>(&control_val_), sizeof(control_val_));
+
+    uint64_t bidx = static_cast<uint64_t>(bit_index_);
+    os.write(reinterpret_cast<const char*>(&bidx), sizeof(bidx));
 
     uint32_t len = static_cast<uint32_t>(tape_path_.size());
     os.write(reinterpret_cast<const char*>(&len), sizeof(len));
@@ -173,13 +241,20 @@ void Cassette::load_state(std::istream& is) {
     is.read(reinterpret_cast<char*>(&read_ready_), sizeof(read_ready_));
     is.read(reinterpret_cast<char*>(&control_val_), sizeof(control_val_));
 
+    uint64_t bidx = 0;
+    is.read(reinterpret_cast<char*>(&bidx), sizeof(bidx));
+
     uint32_t len = 0;
     is.read(reinterpret_cast<char*>(&len), sizeof(len));
     if (len > 0) {
         tape_path_.resize(len);
         is.read(&tape_path_[0], len);
+        mount_read_tape(tape_path_);
+        bit_index_ = static_cast<size_t>(bidx);
     } else {
         tape_path_.clear();
+        tape_bits_.clear();
+        bit_index_ = 0;
     }
 }
 

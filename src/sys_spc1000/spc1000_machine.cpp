@@ -72,6 +72,10 @@ void Spc1000Machine::cassette_stop() {
     board_.cassette().press_stop();
 }
 
+void Spc1000Machine::cassette_rewind() {
+    board_.cassette().rewind();
+}
+
 bool Spc1000Machine::save_snapshot(const std::string& path) {
     std::ofstream os(path, std::ios::binary);
     if (!os.is_open()) {

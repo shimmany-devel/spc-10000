@@ -30,9 +30,13 @@ public:
 
     // 하드웨어 모듈 접근자
     VdgMc6847& vdg() { return vdg_; }
+    const VdgMc6847& vdg() const { return vdg_; }
     Keyboard& keyboard() { return keyboard_; }
+    const Keyboard& keyboard() const { return keyboard_; }
     PsgAy8910& psg() { return psg_; }
+    const PsgAy8910& psg() const { return psg_; }
     Cassette& cassette() { return cassette_; }
+    const Cassette& cassette() const { return cassette_; }
 
     bool iplk() const { return iplk_; }
     void set_iplk(bool active) { iplk_ = active; }

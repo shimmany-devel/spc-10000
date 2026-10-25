@@ -105,6 +105,7 @@ int main(int argc, char* argv[]) {
                       << "  --headless [frames]     Run without GUI window for N frames\n"
                       << "  --test-z8000            Execute Z8000 CPU self-test suite\n\n"
                       << "Shortcuts in GUI window:\n"
+                      << "  F7        : Cassette Tape REWIND\n"
                       << "  F8        : Cassette Tape PLAY\n"
                       << "  F9        : Cassette Tape REC\n"
                       << "  F10       : Cassette Tape STOP\n"
@@ -183,7 +184,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::cout << "\n[Controls] F8: Tape PLAY | F9: Tape REC | F10: Tape STOP | F12: Reset\n"
+    std::cout << "\n[Controls] F7: Rewind | F8: PLAY | F9: REC | F10: STOP | F12: Reset\n"
               << "[Controls] PageUp: Quick Save State | PageDown: Quick Restore State\n\n";
 
     if (headless) {

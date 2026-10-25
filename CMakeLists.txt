@@ -57,4 +57,17 @@ add_executable(test_snapshot_and_cassette
 )
 target_link_libraries(test_snapshot_and_cassette PRIVATE ${SDL2_LIBRARIES})
 
+# Tape load and run verification tool
+add_executable(test_tape_load
+    tool/debug_load.cpp
+    src/core/z80/z80_cpu.cpp
+    src/hw/keyboard.cpp
+    src/hw/vdg_mc6847.cpp
+    src/hw/psg_ay8910.cpp
+    src/hw/cassette.cpp
+    src/sys_spc1000/spc1000_board.cpp
+    src/sys_spc1000/spc1000_machine.cpp
+)
+target_link_libraries(test_tape_load PRIVATE ${SDL2_LIBRARIES})
+
 message(STATUS "Configured SPC-1000 / SPC-10000 Architecture")
