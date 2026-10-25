@@ -8,6 +8,9 @@ EmulatorWindow::EmulatorWindow() {
 }
 
 EmulatorWindow::~EmulatorWindow() {
+    if (audio_device_ > 0) {
+        SDL_CloseAudioDevice(audio_device_);
+    }
     if (texture_) SDL_DestroyTexture(texture_);
     if (renderer_) SDL_DestroyRenderer(renderer_);
     if (window_) SDL_DestroyWindow(window_);
@@ -55,6 +58,23 @@ bool EmulatorWindow::init(const std::string& title) {
     if (!texture_) {
         std::cerr << "[EmulatorWindow] SDL_CreateTexture Error: " << SDL_GetError() << "\n";
         return false;
+    }
+
+    // SDL2 오디오 장치 오픈 (PulseAudio / WSLg RDP Sink)
+    SDL_AudioSpec desired{}, obtained{};
+    desired.freq = 44100;
+    desired.format = AUDIO_F32SYS;
+    desired.channels = 1;
+    desired.samples = 1024;
+
+    audio_device_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, 0);
+    if (audio_device_ > 0) {
+        std::cout << "[EmulatorWindow] Audio Device opened: " 
+                  << obtained.freq << "Hz, " << (int)obtained.channels 
+                  << "ch, format 0x" << std::hex << obtained.format << std::dec << "\n";
+        SDL_PauseAudioDevice(audio_device_, 0); // 오디오 재생 활성화
+    } else {
+        std::cerr << "[EmulatorWindow] Warning: Audio device open failed: " << SDL_GetError() << "\n";
     }
 
     return true;

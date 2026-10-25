@@ -93,6 +93,23 @@ public:
             SDL_RenderCopy(renderer_, texture_, nullptr, nullptr);
             SDL_RenderPresent(renderer_);
 
+            // 실시간 오디오 샘플 큐잉
+            if (audio_device_ > 0) {
+                if (machine.is_cassette_motor_on()) {
+                    SDL_ClearQueuedAudio(audio_device_);
+                    machine.board().psg().clear_samples();
+                } else {
+                    const auto& samples = machine.board().psg().sample_buffer();
+                    if (!samples.empty()) {
+                        uint32_t queued = SDL_GetQueuedAudioSize(audio_device_);
+                        if (queued < (44100 * sizeof(float)) / 10) {
+                            SDL_QueueAudio(audio_device_, samples.data(), samples.size() * sizeof(float));
+                        }
+                        machine.board().psg().clear_samples();
+                    }
+                }
+            }
+
             // 정밀 하이브리드 프레임 페이싱 (카세트 터보 중이 아닐 때)
             if (machine.is_cassette_motor_on()) {
                 next_frame_time = clock::now();
@@ -117,6 +134,7 @@ private:
     SDL_Window* window_{nullptr};
     SDL_Renderer* renderer_{nullptr};
     SDL_Texture* texture_{nullptr};
+    SDL_AudioDeviceID audio_device_{0};
     std::vector<uint32_t> framebuffer_;
 };
 

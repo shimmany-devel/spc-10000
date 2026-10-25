@@ -33,11 +33,13 @@ void Spc1000Machine::run_frame() {
     constexpr uint32_t VBLANK_CYCLES = CYCLES_PER_FRAME - ACTIVE_CYCLES;
 
     cpu_->step_cycles(ACTIVE_CYCLES);
+    board_.psg().step_cycles(ACTIVE_CYCLES);
 
     // VBLANK 인터럽트 발생
     cpu_->trigger_irq();
 
     cpu_->step_cycles(VBLANK_CYCLES);
+    board_.psg().step_cycles(VBLANK_CYCLES);
 }
 
 void Spc1000Machine::render(uint32_t* framebuffer, int pitch_pixels) {
