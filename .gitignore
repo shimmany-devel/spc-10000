@@ -25,3 +25,14 @@ Thumbs.db
 rea-workspace/.cache/
 rea-workspace/*.tmp
 tool/rom_analyzer
+
+# Vivado & FPGA Build Artifacts
+fpga-zcu102/vivado_project/
+fpga-zcu102/*.log
+fpga-zcu102/*.jou
+fpga-zcu102/*.str
+fpga-zcu102/.Xil/
+fpga-zcu102/NA/
+*.log
+*.jou
+.Xil/

@@ -70,6 +70,10 @@ module z8000_core (
             pc_offset <= 16'h0000;
             fcw <= 16'h4000; // System Mode
             byte_en <= 2'b11;
+            addr <= 24'h000000;
+            data_out <= 16'h0000;
+            ir_word1 <= 16'h0000;
+            ir_word2 <= 16'h0000;
             for (int i = 0; i < 16; i++) regs[i] <= 16'h0000;
         end else if (clk_en) begin
             case (state)
